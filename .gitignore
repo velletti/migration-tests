@@ -1,4 +1,4 @@
-config/project.yaml
+config/project.*
 public/reports
 public/rendered
 public/dashboard
