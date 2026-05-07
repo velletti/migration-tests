@@ -1,0 +1,7 @@
+  # Allplan zscaler specific
+  # docker-compose.override.yaml
+services:
+  web:
+    volumes:
+      - ./homeadditions/ca_certs/zscaler.pem:/etc/ssl/certs/zscaler.pem
+

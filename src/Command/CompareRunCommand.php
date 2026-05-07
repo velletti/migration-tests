@@ -13,16 +13,16 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Console\Attribute\AsCommand;
+
+
+#[AsCommand(
+    name: 'compare:run',
+    description: 'Compare URLs between old and new domain'
+)]
 
 class CompareRunCommand extends Command
 {
-
-    protected function configure(): void
-    {
-        $this
-            ->setName('compare:run')
-            ->setDescription('Compare URLs between old and new domain');
-    }
 
 
     protected function execute(InputInterface $input, OutputInterface $output): int
