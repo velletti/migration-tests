@@ -45,7 +45,7 @@ class CompareRunCommand extends Command
 
         $reportDir = $projectRoot . '/' . ($config['output']['reportDir'] ?? 'public/reports');
         $dashBoardDir = ($config['output']['dashboardDir'] ?? 'public/dashboard');
-        $dashBoardUri = "https://tests.ddev.site" . str_replace("public" , "" ,$dashBoardDir);
+        $dashBoardUri = $config['instance'] . str_replace("public" , "" ,$dashBoardDir);
         $dashBoardDir = $projectRoot . '/' . $dashBoardDir ;
         if (!is_dir($reportDir)) {
             mkdir($reportDir, 0777, true);
@@ -90,6 +90,8 @@ class CompareRunCommand extends Command
 
         foreach ($uris as $entry) {
 
+
+
             if (is_string($entry)) {
                 $uri = $entry;
                 $scrollTo = null;
@@ -100,6 +102,10 @@ class CompareRunCommand extends Command
 
             $oldUrl = $oldDomain . $uri;
             $newUrl = $newDomain . $uri;
+
+            if ( $testId ) {
+                $io->text("Testing [$testId/$totalTests]:");
+            }
 
             $io->section("Test [$testId]: $uri");
 
@@ -115,9 +121,13 @@ class CompareRunCommand extends Command
                 'viewports' => []
             ];
             try {
+
                 $oldResponse = $client->get($oldUrl);
                 $oldStatus = $oldResponse->getStatusCode();
                 $oldHtml = (string)$oldResponse->getBody();
+                if ( $testId ) {
+                    $io->text("Testing  $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
+                }
                 $oldHtml = str_replace($newDomain , "" , $oldHtml);
                 $oldHtml = str_replace($oldDomain , "" , $oldHtml);
             } catch (\Exception $e) {
@@ -130,6 +140,13 @@ class CompareRunCommand extends Command
                 $newResponse = $client->get($newUrl);
                 $newStatus = $newResponse->getStatusCode();
                 $newHtml = (string)$newResponse->getBody();
+                if (str_contains($newHtml, '<title>Reports Dashboard</title>')) {
+                    $io->error("New URL is not accessable and is only able to read the Dashboard instead of: $newUrl");
+                    return Command::FAILURE;
+                }
+                if ( $testId ) {
+                    $io->text("Testing  $newUrl → Status: $newStatus" . " length: " . strlen($newHtml) );
+                }
                 $newHtml = str_replace($oldDomain , "" , $newHtml);
                 $newHtml = str_replace($newDomain , "" , $newHtml);
             } catch (\Exception $e) {
@@ -259,6 +276,7 @@ class CompareRunCommand extends Command
         );
 
         $io->success("HTML Report: " . $dashBoardUri. "/report_$timestamp.html");
+        $io->success("Dashboard: " . $config['instance'] . "/index.php?" . time());
 
 
         return Command::SUCCESS;

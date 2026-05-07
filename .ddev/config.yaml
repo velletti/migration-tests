@@ -1,4 +1,4 @@
-name: tests
+name: migration-tests
 type: php
 docroot: public
 php_version: "8.4"

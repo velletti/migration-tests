@@ -64,6 +64,7 @@ class InitProjectCommand extends Command
             'project' => [
                 'newDomain' => $newDomain,
                 'oldDomain' => $oldDomain,
+                'instance' => "https://migration-tests.ddev.site" ,
 
                 'ignore' => [
                     'selectors' => $ignoreSelectors
@@ -85,7 +86,7 @@ class InitProjectCommand extends Command
         ];
 
         // ✅ YAML erzeugen
-        $yaml = Yaml::dump($config, 4, 2);
+        $yaml = Yaml::dump($config, 3, 2  , Yaml::DUMP_FORCE_DOUBLE_QUOTES_ON_VALUES);
 
         $projectRoot = dirname(__DIR__, 2);
         $configDir = $projectRoot . '/config';
@@ -95,6 +96,10 @@ class InitProjectCommand extends Command
         }
 
         $file = $configDir . '/project.yaml';
+        if ( file_exists($file) ) {
+            copy($file , $file . '.bak');
+            $io->warning("project.yaml already exists: created $file.bak as backup");
+        }
         file_put_contents($file, $yaml);
 
         $io->success("project.yaml created at: $file");

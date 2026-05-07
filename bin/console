@@ -5,6 +5,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Symfony\Component\Console\Application;
 use App\Command\CompareRunCommand;
+use App\Command\CompareCleanupCommand;
 
 use App\Command\InitProjectCommand;
 
@@ -14,6 +15,7 @@ $application = new Application('URL Compare Tool', '1.0.0');
 
 // Registriere deinen Command
 $application->addCommand(new CompareRunCommand());
+$application->addCommand(new CompareCleanupCommand());
 $application->addCommand(new InitProjectCommand());
 
 // Starte die CLI
