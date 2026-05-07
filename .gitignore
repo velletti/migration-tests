@@ -8,3 +8,5 @@ drivers
 *.log
 log
 .ddev/homeadditions/ca_certs/zscaler.pem
+.ddev/homeadditions/.ssh
+
