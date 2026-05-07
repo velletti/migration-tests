@@ -1,0 +1,15 @@
+#!/usr/bin/env php
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Symfony\Component\Console\Application;
+use App\Command\CompareRunCommand;
+
+$application = new Application('URL Compare Tool', '1.0.0');
+
+// Registriere deinen Command
+$application->add(new CompareRunCommand());
+
+// Starte die CLI
+$application->run();

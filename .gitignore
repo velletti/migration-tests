@@ -1,0 +1,10 @@
+config/project.yaml
+public/reports
+public/rendered
+public/dashboard
+public/coverage
+vendor
+drivers
+*.log
+log
+.ddev/homeadditions/ca_certs/zscaler.pem
