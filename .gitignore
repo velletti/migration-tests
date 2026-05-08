@@ -9,4 +9,4 @@ drivers
 log
 .ddev/homeadditions/ca_certs/zscaler.pem
 .ddev/homeadditions/.ssh
-
+.ddev/docker-compose.communicate.yaml

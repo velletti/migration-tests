@@ -24,7 +24,12 @@ class InitProjectCommand extends Command
 
         // ✅ Domains
         $oldDomain = $io->ask('Old domain (z.B. https://www.allplan.com)');
+        // htaccess User/Passwort
+        $oldDomainAuth = $io->ask('htaccess user:passwort für OLD domain (optional, user:pass)', null);
+
         $newDomain = $io->ask('New domain (z.B. https://wwwv13.allplan.com.ddev.site)');
+        $newDomainAuth = $io->ask('htaccess user:passwort für NEW domain (optional, user:pass)', null);
+
 
         // ✅ Ignore Selectors
         $io->section('Ignore Selectors (empty input to finish)');
@@ -63,7 +68,9 @@ class InitProjectCommand extends Command
         $config = [
             'project' => [
                 'newDomain' => $newDomain,
+                'newDomainBasicAuth' => $newDomainAuth,
                 'oldDomain' => $oldDomain,
+                'oldDomainBasicAuth' => $oldDomainAuth,
                 'instance' => "https://migration-tests.ddev.site" ,
 
                 'ignore' => [
@@ -78,7 +85,9 @@ class InitProjectCommand extends Command
                 'output' => [
                     'reportDir' => 'public/reports',
                     'renderedDir' => 'public/rendered',
-                    'dashboardDir' => 'public/dashboard'
+                    'dashboardDir' => 'public/dashboard',
+                    'publicDir' => 'public',
+                    'baseDir' => 'public/base'
                 ],
 
                 'uris' => $uris
@@ -101,6 +110,44 @@ class InitProjectCommand extends Command
             $io->warning("project.yaml already exists: created $file.bak as backup");
         }
         file_put_contents($file, $yaml);
+
+        // --- DDEV docker-compose.communicate.yaml prüfen/erstellen/ergänzen ---
+        $dockerComposePath = $projectRoot . '/.ddev/docker-compose.communicate.yaml';
+        $dockerComposeChanged = false;
+
+        if (strpos($newDomain, '.ddev.site') !== false) {
+            if (!file_exists($dockerComposePath)) {
+                // Datei anlegen
+                $content = [
+                    'services' => [
+                        'web' => [
+                            'external_links' => [
+                                "ddev-router:" . parse_url($newDomain, PHP_URL_HOST)
+                            ]
+                        ]
+                    ]
+                ];
+                file_put_contents($dockerComposePath, Yaml::dump($content, 4, 2));
+                $dockerComposeChanged = true;
+            } else {
+                // Datei laden und prüfen
+                $yamlContent = Yaml::parseFile($dockerComposePath);
+                $host = parse_url($newDomain, PHP_URL_HOST);
+                if (!isset($yamlContent['services']['web']['external_links'])) {
+                    $yamlContent['services']['web']['external_links'] = [];
+                }
+                $link = "ddev-router:" . $host;
+                if (!in_array($link, $yamlContent['services']['web']['external_links'])) {
+                    $yamlContent['services']['web']['external_links'][] = $link;
+                    file_put_contents($dockerComposePath, Yaml::dump($yamlContent, 4, 2));
+                    $dockerComposeChanged = true;
+                }
+            }
+        }
+
+        if ($dockerComposeChanged) {
+            $io->warning('.ddev/docker-compose.communicate.yaml wurde erstellt oder geändert. Bitte führe `ddev restart` aus!');
+        }
 
         $io->success("project.yaml created at: $file");
 

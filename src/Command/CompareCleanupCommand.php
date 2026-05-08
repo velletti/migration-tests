@@ -36,6 +36,7 @@ class CompareCleanupCommand extends Command
         $renderedDir = $projectRoot . '/' . $config['output']['renderedDir'];
         $reportDir   = $projectRoot . '/' . $config['output']['reportDir'];
         $dashboardDir   = $projectRoot . '/' . $config['output']['dashboardDir'];
+        $baseDir   = $projectRoot . '/' . $config['output']['baseDir'];
 
         $latest = (int)$input->getOption('latest');
         $oldest = (int)$input->getOption('oldest');
@@ -54,9 +55,14 @@ class CompareCleanupCommand extends Command
             $this->deleteAll($renderedDir);
             $this->deleteAll($reportDir);
             $this->deleteAll($dashboardDir);
+        //    $this->deleteAll($baseDir);
 
             $io->success('All files deleted');
             return Command::SUCCESS;
+        }
+        if ($io->confirm('Clear also base directory?', false)) {
+            $io->section("Processing: $baseDir ");
+        //    $this->deleteAll($baseDir);
         }
 
         $this->cleanDirectory($io, $renderedDir, $latest, $oldest);

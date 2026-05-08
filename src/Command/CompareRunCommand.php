@@ -14,7 +14,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Attribute\AsCommand;
-
+use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(
     name: 'compare:run',
@@ -24,6 +24,16 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class CompareRunCommand extends Command
 {
 
+    // 2. Option in configure() hinzufügen
+    protected function configure(): void
+    {
+        $this->addOption(
+            'tests',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'Komma separierte Liste von Test IDs, z.B. 1,3,7 (default: alle Tests)',
+        );
+    }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
@@ -36,6 +46,8 @@ class CompareRunCommand extends Command
         // Config laden
         $configLoader = new ConfigLoader($projectRoot . '/config/project.yaml');
         $config = $configLoader->getProject();
+        $config['projectRoot'] = $projectRoot;
+        $config['projectPublic'] = $projectRoot . '/' . ($config['output']['publicDir'] ?? 'public');
 
         $ignoreSelectors = $config['ignore']['selectors'] ?? [];
 
@@ -52,6 +64,10 @@ class CompareRunCommand extends Command
         }
         if (!is_dir($dashBoardDir)) {
             mkdir($dashBoardDir, 0777, true);
+        }
+        $baseDir = $projectRoot . '/' . ($config['output']['baseDir'] ?? 'public/base');
+        if (!is_dir($baseDir)) {
+            mkdir($baseDir, 0777, true);
         }
 
         $renderService = new RenderService();
@@ -79,6 +95,14 @@ class CompareRunCommand extends Command
 
         $reportLines = [];
 
+        $testsOption = $input->getOption('tests');
+        $testsToRun = null;
+        if (!empty($testsOption)) {
+            $testsToRun = array_map('intval', explode(',', $testsOption));
+            $io->text("Running only tests: " . implode(', ', $testsToRun));
+        }
+
+
         $testId = 1;
         $totalTests = count($uris);
         $totalScore = 0;
@@ -90,7 +114,18 @@ class CompareRunCommand extends Command
 
         foreach ($uris as $entry) {
 
+            // Prüfen, ob dieser Test ausgeführt werden soll
+            if ($testsToRun !== null && !in_array($testId, $testsToRun, true)) {
+                $testId++;
+                continue;
+            }
 
+            $baseTestDir = $baseDir . '/test_' . str_pad($testId, 3, '0', STR_PAD_LEFT);
+            if (!is_dir($baseTestDir)) {
+                mkdir($baseTestDir, 0777, true);
+            }
+            $baseOldImg = $baseTestDir . '/old.png';
+            $baseOldHtml = $baseTestDir . '/old.html';
 
             if (is_string($entry)) {
                 $uri = $entry;
@@ -120,20 +155,32 @@ class CompareRunCommand extends Command
                 'max' => $maxScore,
                 'viewports' => []
             ];
-            try {
+            if (!file_exists($baseOldImg) || !file_exists($baseOldHtml)) {
+                // Nur dann Request an oldDomain
+                try {
 
-                $oldResponse = $client->get($oldUrl);
-                $oldStatus = $oldResponse->getStatusCode();
-                $oldHtml = (string)$oldResponse->getBody();
-                if ( $testId ) {
-                    $io->text("Testing  $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
+                    $oldResponse = $client->get($oldUrl);
+                    $oldStatus = $oldResponse->getStatusCode();
+                    $oldHtml = (string)$oldResponse->getBody();
+                    if ($testId) {
+                        $io->text("Testing  $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
+                    }
+                    $oldHtml = str_replace($newDomain, "", $oldHtml);
+                    $oldHtml = str_replace($oldDomain, "", $oldHtml);
+                    file_put_contents($baseOldHtml, $oldHtml);
+
+                } catch (\Exception $e) {
+                    $oldStatus = 500;
+                    $oldHtml = '';
+                    $io->warning("Old URL failed: $oldUrl");
                 }
-                $oldHtml = str_replace($newDomain , "" , $oldHtml);
-                $oldHtml = str_replace($oldDomain , "" , $oldHtml);
-            } catch (\Exception $e) {
-                $oldStatus = 0;
-                $oldHtml = '';
-                $io->warning("Old URL failed: $oldUrl");
+            } else {
+                $oldStatus = 404;
+                $oldHtml = file_get_contents($baseOldHtml);
+                if ($oldHtml) {
+                    $oldStatus = 200;
+                    $io->text("Using cached old HTML for $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
+                }
             }
 
             try {
@@ -177,17 +224,25 @@ class CompareRunCommand extends Command
                 $io->text("  → Screenshot {$width}x{$height}");
 
                 $testDir = $runDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT);
+                $baseTestDir = $baseDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT);
+
                 $viewportDir = $testDir . "/{$width}";
+                $baseViewportDir = $baseTestDir . "/{$width}";
                 $diffImgPath = $viewportDir . '/diff.png';
 
                 if (!is_dir($viewportDir)) {
                     mkdir($viewportDir, 0777, true);
                 }
 
-                $oldImg = $viewportDir . '/old.png';
+                $oldImg = $baseViewportDir . '/old.png';
                 $newImg = $viewportDir . '/new.png';
 
-                $oldOk = $renderService->screenshot($oldUrl, $width, $height, $oldImg, $ignoreSelectors, $scrollTo);
+                if ( file_exists($oldImg) ) {
+                    $io->text("    Using cached screenshots for viewport {$width}x{$height}");
+                    $oldOk = true;
+                } else {
+                    $oldOk = $renderService->screenshot($oldUrl, $width, $height, $oldImg, $ignoreSelectors, $scrollTo);
+                }
                 $newOk = $renderService->screenshot($newUrl, $width, $height, $newImg, $ignoreSelectors, $scrollTo);
 
                 if ($oldOk && $newOk && file_exists($oldImg) && file_exists($newImg)) {
@@ -226,7 +281,8 @@ class CompareRunCommand extends Command
                 $testData['viewports'][] = [
                     'width' => $width,
                     'height' => $height,
-                    'path' => $viewportDir
+                    'path' => $viewportDir,
+                    'pathBase' => $baseViewportDir
                 ];
                 $testData['score'] = $score;
 
@@ -268,7 +324,7 @@ class CompareRunCommand extends Command
         $htmlReport->generate(
             $htmlReportFile,
             $reportData,
-            $projectRoot . '/public',
+            $config,
 
             $oldDomain,
             $newDomain

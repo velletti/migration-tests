@@ -4,10 +4,10 @@ namespace App\Service;
 
 class HtmlReportService
 {
-    public function generate(string $outputFile, array $tests, string $basePath,  string $oldDomain, string $newDomain): void
+    public function generate(string $outputFile, array $tests, array $config,  string $oldDomain, string $newDomain): void
     {
         $html = '<html><head><meta charset="UTF-8">';
-        $html .= '<link rel="stylesheet" href="../styles.css?' . filemtime( $basePath . "/styles.css") . '" media="all"></link>';
+        $html .= '<link rel="stylesheet" href="../styles.css?' . filemtime( $config['projectPublic'] . "/styles.css") . '" media="all"></link>';
 
 
         // ✅ JavaScript
@@ -78,24 +78,25 @@ class HtmlReportService
 
             foreach ($test['viewports'] as $vp) {
 
-                $relativePath = str_replace($basePath, '', $vp['path']);
+                $relativePathBase = str_replace($config['projectPublic'], '', $vp['pathBase']);
+                $relativePathNew = str_replace($config['projectPublic'], '', $vp['path']);
 
                 $html .= "<div class='viewport'>";
                 $html .= "<div><B>" . $vp['width'] . "x" . $vp['height'] . "</B></div>";
 
                 $html .= "<div>
                     <div>Old</div>
-                    <img src='{$relativePath}/old.png'>
+                    <img src='{$relativePathBase}/old.png'>
                 </div>";
 
                 $html .= "<div>
                     <div>New</div>
-                    <img src='{$relativePath}/new.png'>
+                    <img src='{$relativePathNew}/new.png'>
                 </div>";
                 if ( file_exists($vp['path'] . '/diff.png')) {
                         $html .= "<div>
                         <div>Diff</div>
-                        <img src='{$relativePath}/diff.png'>
+                        <img src='{$relativePathNew}/diff.png'>
                     </div>";
                 } else {
                      $html .= "<div>
