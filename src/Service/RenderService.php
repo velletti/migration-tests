@@ -10,7 +10,7 @@ class RenderService
     public function render(string $url, int $width, int $height): ?string
     {
         try {
-            $client = Client::createChromeClient(null, [
+            $client = Client::createChromeClient($this->getDriverPath(), [
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
                 '--headless=new',
@@ -43,8 +43,8 @@ class RenderService
     public function screenshot(string $url, int $width, int $height, string $path, array $ignoreSelectors = [] ,?string $scrollTo = null): bool
     {
         try {
-            $driverPath = __DIR__ . '/../../vendor/bin/drivers/chromedriver';
-            $client = Client::createChromeClient( $driverPath, [
+
+            $client = Client::createChromeClient( $this->getDriverPath(), [
                 '--no-sandbox',
                 '--disable-dev-shm-usage',
                 '--headless=new',
@@ -122,6 +122,18 @@ class RenderService
         $client->executeScript($js);
     }
 
+    private function getDriverPath(): ?string
+    {
+        $driverPath = __DIR__ . '/../../drivers/chromedriver';
+        if (file_exists($driverPath )) {
+            return $driverPath;
+        }
+        $driverPath = __DIR__ . '/../drivers/chromedriver';
+        if (file_exists($driverPath )) {
+            return $driverPath;
+        }
+        return __DIR__ . '/drivers/chromedriver';
+    }
 
 
 }

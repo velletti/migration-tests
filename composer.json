@@ -27,9 +27,6 @@
     }
   },
   "scripts": {
-    "test": "phpunit",
-
-    "scripts": {
       "post-install-cmd": [
         "@bdi"
       ],
@@ -38,8 +35,7 @@
       ],
       "bdi": "vendor/bin/bdi detect drivers",
       "test": "phpunit"
-
-    },
+  },
   "config": {
     "sort-packages": true
   },
