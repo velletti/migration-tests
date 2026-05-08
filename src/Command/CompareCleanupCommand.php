@@ -34,7 +34,7 @@ class CompareCleanupCommand extends Command
         $config = $configLoader->getProject();
 
         $renderedDir = $projectRoot . '/' . ltrim($config['output']['renderedDir'] , "/") ;
-        $reportDir   = $projectRoot . '/' . ltrim(config['output']['reportDir'], "/");
+        $reportDir   = $projectRoot . '/' . ltrim($config['output']['reportDir'], "/");
         $dashboardDir   = $projectRoot . '/' . ltrim($config['output']['dashboardDir'], "/");
         $baseDir   = $projectRoot . '/' . ltrim($config['output']['baseDir'], "/");
 
@@ -46,7 +46,7 @@ class CompareCleanupCommand extends Command
             $io->error('Base directory is set to project root. Aborting to prevent data loss.');
             return Command::FAILURE;
         }
-        
+
 
         $latest = (int)$input->getOption('latest');
         $oldest = (int)$input->getOption('oldest');
@@ -54,20 +54,24 @@ class CompareCleanupCommand extends Command
 
         $io->title('Cleanup Reports & Rendered Data');
 
-        if (!$io->confirm('Proceed with cleanup?', false)) {
-            return Command::SUCCESS;
-        }
+
 
 
         if ($deleteAll) {
             $io->warning('Deleting ALL rendered and report files');
 
+            if (!$io->confirm('Proceed with cleanup? ' ,false)) {
+                return Command::SUCCESS;
+            }
             $this->deleteAll($renderedDir);
             $this->deleteAll($reportDir);
             $this->deleteAll($dashboardDir);
         //    $this->deleteAll($baseDir);
 
             $io->success('All files deleted');
+            return Command::SUCCESS;
+        }
+        if (!$io->confirm('Proceed with cleanup? (keep latest ' .$latest . ' and old: ' . $oldest . " tests", false)) {
             return Command::SUCCESS;
         }
         if ($io->confirm('Clear also base directory?', false)) {

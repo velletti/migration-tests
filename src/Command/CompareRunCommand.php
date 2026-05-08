@@ -162,11 +162,12 @@ class CompareRunCommand extends Command
                     $oldResponse = $client->get($oldUrl);
                     $oldStatus = $oldResponse->getStatusCode();
                     $oldHtml = (string)$oldResponse->getBody();
+
+                    $oldHtml = str_replace($newDomain, "", $oldHtml);
+                    $oldHtml = str_replace($oldDomain, "", $oldHtml);
                     if ($testId) {
                         $io->text("Testing  $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
                     }
-                    $oldHtml = str_replace($newDomain, "", $oldHtml);
-                    $oldHtml = str_replace($oldDomain, "", $oldHtml);
                     file_put_contents($baseOldHtml, $oldHtml);
 
                 } catch (\Exception $e) {
@@ -191,11 +192,12 @@ class CompareRunCommand extends Command
                     $io->error("New URL is not accessable and is only able to read the Dashboard instead of: $newUrl");
                     return Command::FAILURE;
                 }
+
+                $newHtml = str_replace($oldDomain , "" , $newHtml);
+                $newHtml = str_replace($newDomain , "" , $newHtml);
                 if ( $testId ) {
                     $io->text("Testing  $newUrl → Status: $newStatus" . " length: " . strlen($newHtml) );
                 }
-                $newHtml = str_replace($oldDomain , "" , $newHtml);
-                $newHtml = str_replace($newDomain , "" , $newHtml);
             } catch (\Exception $e) {
                 $newStatus = 0;
                 $newHtml = '';
@@ -207,9 +209,16 @@ class CompareRunCommand extends Command
                 $score++;
             }
 
+            $testDir = $runDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT);
+            if (!is_dir($testDir)) {
+                mkdir($testDir, 0777, true);
+            }
             // ✅ Check 2: HTML Länge
-            if (strlen($oldHtml) === strlen($newHtml)) {
+            if ($diffService::compareLength($oldHtml, $newHtml)) {
                 $score++;
+            } else {
+                $io->text("    ✖ HTML length differs (old: " . strlen($oldHtml) . " vs new: " . strlen($newHtml) . ")");
+                file_put_contents($testDir . "/diff.txt" , $diffService::diffHtml($oldHtml, $newHtml));
             }
 
 
@@ -223,7 +232,7 @@ class CompareRunCommand extends Command
 
                 $io->text("  → Screenshot {$width}x{$height}");
 
-                $testDir = $runDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT);
+
                 $baseTestDir = $baseDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT);
 
                 $viewportDir = $testDir . "/{$width}";
@@ -232,6 +241,9 @@ class CompareRunCommand extends Command
 
                 if (!is_dir($viewportDir)) {
                     mkdir($viewportDir, 0777, true);
+                }
+                if (!is_dir($baseViewportDir)) {
+                    mkdir($baseViewportDir, 0777, true);
                 }
 
                 $oldImg = $baseViewportDir . '/old.png';
