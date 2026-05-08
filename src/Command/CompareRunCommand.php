@@ -327,7 +327,9 @@ class CompareRunCommand extends Command
             $config,
 
             $oldDomain,
-            $newDomain
+            $newDomain,
+            $totalScore,
+            $maxTotalScore
 
         );
 

@@ -4,9 +4,13 @@ namespace App\Service;
 
 class HtmlReportService
 {
-    public function generate(string $outputFile, array $tests, array $config,  string $oldDomain, string $newDomain): void
+    public function generate(string $outputFile,
+                             array $tests, array $config,
+                             string $oldDomain, string $newDomain ,
+                             int $totalScore, int $maxTotalScore = 1): void
     {
         $html = '<html><head><meta charset="UTF-8">';
+        $html .= '<meta totalScore="' . $totalScore . '" maxTotalScore="' . $maxTotalScore . '" percentage="' . round(($totalScore / $maxTotalScore) * 100, 2) . '" tests="' . count($tests) . '">';
         $html .= '<link rel="stylesheet" href="../styles.css?' . filemtime( $config['projectPublic'] . "/styles.css") . '" media="all"></link>';
 
 

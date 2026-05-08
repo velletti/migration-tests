@@ -33,10 +33,20 @@ class CompareCleanupCommand extends Command
         $configLoader = new ConfigLoader($projectRoot . '/config/project.yaml');
         $config = $configLoader->getProject();
 
-        $renderedDir = $projectRoot . '/' . $config['output']['renderedDir'];
-        $reportDir   = $projectRoot . '/' . $config['output']['reportDir'];
-        $dashboardDir   = $projectRoot . '/' . $config['output']['dashboardDir'];
-        $baseDir   = $projectRoot . '/' . $config['output']['baseDir'];
+        $renderedDir = $projectRoot . '/' . ltrim($config['output']['renderedDir'] , "/") ;
+        $reportDir   = $projectRoot . '/' . ltrim(config['output']['reportDir'], "/");
+        $dashboardDir   = $projectRoot . '/' . ltrim($config['output']['dashboardDir'], "/");
+        $baseDir   = $projectRoot . '/' . ltrim($config['output']['baseDir'], "/");
+
+        if ( !is_dir($renderedDir) && !is_dir($reportDir) && !is_dir($dashboardDir) ) {
+            $io->warning('No directories found to clean');
+            return Command::SUCCESS;
+        }
+        if( $renderedDir == $projectRoot . '/' || $reportDir == $projectRoot . '/' || $dashboardDir == $projectRoot . '/' || $baseDir == $projectRoot . '/' ) {
+            $io->error('Base directory is set to project root. Aborting to prevent data loss.');
+            return Command::FAILURE;
+        }
+        
 
         $latest = (int)$input->getOption('latest');
         $oldest = (int)$input->getOption('oldest');
