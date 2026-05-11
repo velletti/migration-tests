@@ -62,11 +62,18 @@ class HtmlReportService
             // ✅ Klickbarer Header
             $oldUrl = rtrim($oldDomain, '/') . $uri;
             $newUrl = rtrim($newDomain, '/') . $uri;
+            $diffUrl = $test['diffUrl'] ?? '';
 
             $html .= "<div class='header {$status}' onclick=\"toggle('{$containerId}')\">
                 " . ($status === 'pass' ? "✅" : "❌") . " {$id} | {$uri} | passed {$score}/{$max} 
             
                 <span class='links'>
+                    <?PHP if ($diffUrl): ?>
+                        <a href='{$diffUrl}' target='_blank' onclick='event.stopPropagation()'>
+                            <button>DIFF</button>
+                        </a>
+                    <?PHP endif; ?>
+                    
                     <a href='{$oldUrl}' target='_blank' onclick='event.stopPropagation()'>
                         <button>OLD</button>
                     </a>
@@ -90,17 +97,17 @@ class HtmlReportService
 
                 $html .= "<div>
                     <div>Old</div>
-                    <img src='{$relativePathBase}/old.png'>
+                    <img src='{$relativePathBase}/old.png?" . filemtime($vp['pathBase'] . '/old.png') . "'>
                 </div>";
 
                 $html .= "<div>
                     <div>New</div>
-                    <img src='{$relativePathNew}/new.png'>
+                    <img src='{$relativePathNew}/new.png?" . filemtime($vp['path'] . '/new.png') . "'>
                 </div>";
                 if ( file_exists($vp['path'] . '/diff.png')) {
                         $html .= "<div>
                         <div>Diff</div>
-                        <img src='{$relativePathNew}/diff.png'>
+                        <img src='{$relativePathNew}/diff.png?" . filemtime($vp['path'] . '/diff.png') . "'>
                     </div>";
                 } else {
                      $html .= "<div>

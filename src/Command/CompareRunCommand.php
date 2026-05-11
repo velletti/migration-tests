@@ -107,7 +107,8 @@ class CompareRunCommand extends Command
         $renderBaseDir = $projectRoot . '/' . ($config['output']['renderedDir'] ?? 'public/rendered');
 
         $runDir = $renderBaseDir . '/' . date('Y-m-d_H-i-s');
-
+        $publicRunDir = str_replace([$projectRoot , $config['output']['publicDir'] ], ['' , ''], $runDir);
+        $publicRunDir = $config['instance'] . trim( str_replace( "//" , "/" , $publicRunDir ) , "/" )  ;
         if (!is_dir($runDir)) {
             mkdir($runDir, 0777, true);
         }
@@ -242,7 +243,7 @@ class CompareRunCommand extends Command
                     $io->error("New URL is not accessable and is only able to read the Dashboard instead of: $newUrl");
                     return Command::FAILURE;
                 }
-
+                echo "New HTML length before: " . strlen($newHtml) . "\n";
                 $newHtml = str_replace($oldDomain , "" , $newHtml);
                 $newHtml = str_replace($newDomain , "" , $newHtml);
                 if ( $testId ) {
@@ -269,6 +270,7 @@ class CompareRunCommand extends Command
             } else {
                 $diff = $diffService->diffHtml($oldHtml, $newHtml);
                 file_put_contents($testDir . "/diff.txt" , json_encode($diff, JSON_PRETTY_PRINT));
+                $testData['diffUrl'] = $publicRunDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT) .  "/diff.txt" ;
                 if ( count( $diff) < 6  ) {
                     $score++;
                     $io->text("    ? HTML differs (similarity: " . count($diff) . " differences, " . $diffService->diffScore($oldHtml, $newHtml) . "% similarity)");
@@ -354,6 +356,7 @@ class CompareRunCommand extends Command
                     'pathBase' => $baseViewportDir
                 ];
                 $testData['score'] = $score;
+
 
             }
             $totalScore += $score;

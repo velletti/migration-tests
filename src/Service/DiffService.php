@@ -21,6 +21,13 @@ class DiffService
             if ( str_contains($item , "environment")) {
                 continue;
             }
+            if ( str_contains($item , "/typo3temp/assets/js")) {
+                continue;
+            }
+
+            if ( str_contains($item , "/fileadmin/_processed_")) {
+                continue;
+            }
             if ( str_contains($item , "usercentrics")) {
                 continue;
             }
@@ -40,6 +47,7 @@ class DiffService
 
         // remove /_assets/9685e7d353db6d02460419a5f921e5a3/
         $html = preg_replace('/\/_assets\/[a-z0-9]+\/?/', '/_assets/placeholder/', $html);
+
 
         // remove timestamps from .css? or .js?   .. "<script src=\"/_assets/placeholder/Js/www.allplan.com/application.min.js?1774366905\">",
 
