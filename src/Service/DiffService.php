@@ -26,7 +26,8 @@ class DiffService
             }
             $result[] = "<" . $item;
         }
-        return json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+
+        return $result;
     }
 
     public static function normalizeHtml(string $html): string
@@ -35,12 +36,14 @@ class DiffService
         $html = preg_replace('/\s+/', ' ', $html); // whitespace normalisieren
         $html = preg_replace('/data-[^=]+="[^"]*"/', '', $html); // data attrs
         $html = preg_replace('/<!--.*?-->/', '', $html); // Kommentare
+        $html = preg_replace('/html lang="[a-zA-Z-]"/', 'html', $html); // header
+
         // remove /_assets/9685e7d353db6d02460419a5f921e5a3/
         $html = preg_replace('/\/_assets\/[a-z0-9]+\/?/', '/_assets/placeholder/', $html);
 
         // remove timestamps from .css? or .js?   .. "<script src=\"/_assets/placeholder/Js/www.allplan.com/application.min.js?1774366905\">",
 
-            $html = preg_replace('/(\.css|\.js)\?\d+/', '$1?timeStamp', $html);
+        $html = preg_replace('/(\.css|\.js)\?\d+/', '$1?timeStamp', $html);
 
         return trim($html);
     }

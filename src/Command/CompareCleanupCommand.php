@@ -5,6 +5,7 @@ namespace App\Command;
 use App\Service\ConfigLoader;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -18,6 +19,12 @@ class CompareCleanupCommand extends Command
 {
     protected function configure(): void
     {
+        $this->addArgument(
+            'project',
+            InputArgument::OPTIONAL,
+            'Projektname, z.B. "foo" für project_foo.yaml'
+        );
+
         $this
             ->addOption('latest', null, InputOption::VALUE_OPTIONAL, 'Number of latest runs to keep', 3)
             ->addOption('oldest', null, InputOption::VALUE_OPTIONAL, 'Number of oldest runs to keep', 1)
@@ -30,7 +37,32 @@ class CompareCleanupCommand extends Command
 
         $projectRoot = dirname(__DIR__, 2);
 
-        $configLoader = new ConfigLoader($projectRoot . '/config/project.yaml');
+
+        $project = $input->getArgument('project');
+        if ($project) {
+            $configFile = $projectRoot . '/config/project_' . (string)trim($project) . '.yaml';
+            if (!file_exists($configFile)) {
+                $io->error('Konfigurationsdatei nicht gefunden: ' . $configFile);
+                return Command::FAILURE;
+            }
+        } else {
+            // Am Anfang von execute() einfügen, vor $configLoader:
+            $configFiles = glob($projectRoot . '/config/project*.yaml');
+            if (count($configFiles) > 1) {
+                $choices = array_map(fn($f) => basename($f), $configFiles);
+                $selected = $io->choice('Mehrere Projekt-Konfigurationen gefunden. Welche verwenden?', $choices, 0);
+                $configFile = $projectRoot . '/config/' . $selected;
+            } elseif (count($configFiles) === 1) {
+                $configFile = $configFiles[0];
+            } else {
+                $io->error('Keine project*.yaml Datei im config-Ordner gefunden.');
+                return Command::FAILURE;
+            }
+        }
+
+// Dann $configLoader wie folgt anpassen:
+        $configLoader = new ConfigLoader($configFile);
+
         $config = $configLoader->getProject();
 
         $renderedDir = $projectRoot . '/' . ltrim($config['output']['renderedDir'] , "/") ;
@@ -38,7 +70,7 @@ class CompareCleanupCommand extends Command
         $dashboardDir   = $projectRoot . '/' . ltrim($config['output']['dashboardDir'], "/");
         $baseDir   = $projectRoot . '/' . ltrim($config['output']['baseDir'], "/");
 
-        if ( !is_dir($renderedDir) && !is_dir($reportDir) && !is_dir($dashboardDir) ) {
+        if ( !is_dir($renderedDir) && !is_dir($reportDir) && !is_dir($dashboardDir) && !is_dir($baseDir)) {
             $io->warning('No directories found to clean');
             return Command::SUCCESS;
         }
@@ -52,9 +84,7 @@ class CompareCleanupCommand extends Command
         $oldest = (int)$input->getOption('oldest');
         $deleteAll = $input->getOption('all');
 
-        $io->title('Cleanup Reports & Rendered Data');
-
-
+        $io->title('Cleanup Reports & Rendered Data for config: ' . $configFile);
 
 
         if ($deleteAll) {
@@ -66,7 +96,7 @@ class CompareCleanupCommand extends Command
             $this->deleteAll($renderedDir);
             $this->deleteAll($reportDir);
             $this->deleteAll($dashboardDir);
-        //    $this->deleteAll($baseDir);
+            $this->deleteAll($baseDir);
 
             $io->success('All files deleted');
             return Command::SUCCESS;
@@ -76,7 +106,7 @@ class CompareCleanupCommand extends Command
         }
         if ($io->confirm('Clear also base directory?', false)) {
             $io->section("Processing: $baseDir ");
-        //    $this->deleteAll($baseDir);
+            $this->deleteAll($baseDir);
         }
 
         $this->cleanDirectory($io, $renderedDir, $latest, $oldest);

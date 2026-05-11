@@ -1,11 +1,11 @@
 .idea/*
-config/project.*
+config/project*
 
-public/base
-public/reports
-public/rendered
-public/dashboard
-public/coverage
+public/*
+!public/.gitkeep
+!public/index.php
+!public/styles.css
+
 vendor
 drivers
 *.log

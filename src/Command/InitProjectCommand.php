@@ -23,12 +23,35 @@ class InitProjectCommand extends Command
         $io->title('Project Configuration Setup');
 
         // ✅ Domains
-        $oldDomain = $io->ask('Old domain (z.B. https://www.allplan.com)');
+        $oldDomain = $io->ask('Old domain (z.B. https://www.allplan.com)' , "https://www.allplan.com");
         // htaccess User/Passwort
-        $oldDomainAuth = $io->ask('htaccess user:passwort für OLD domain (optional, user:pass)', null);
+        $oldDomainAuth = $io->ask('htaccess user:passwort für OLD domain (optional, user:pass)', "dev:dev");
 
         $newDomain = $io->ask('New domain (z.B. https://wwwv13.allplan.com.ddev.site)');
         $newDomainAuth = $io->ask('htaccess user:passwort für NEW domain (optional, user:pass)', null);
+
+// Nach den Domain-Inputs:
+        $publicDir = $io->ask('Output PublicDir', 'public');
+        $basePath = $io->ask('BasePath', '/');
+
+// Output-Subfolder-Definitionen
+        $outputSubfolders = [
+            'reportDir'    => 'report',
+            'renderedDir'  => 'rendered',
+            'dashboardDir' => 'dashboard',
+            'publicDir'    => '',
+            'baseDir'      => 'base'
+        ];
+
+// Output-Array dynamisch bauen
+        $output = [];
+        foreach ($outputSubfolders as $key => $sub) {
+            $output[$key] = rtrim($publicDir, '/')
+                . rtrim($basePath, '/')
+                . ($sub !== '' ? '/' . $sub : '');
+        }
+
+
 
 
         // ✅ Ignore Selectors
@@ -82,13 +105,7 @@ class InitProjectCommand extends Command
                     ['width' => 1900, 'height' => 2000],
                 ],
 
-                'output' => [
-                    'reportDir' => 'public/reports',
-                    'renderedDir' => 'public/rendered',
-                    'dashboardDir' => 'public/dashboard',
-                    'publicDir' => 'public',
-                    'baseDir' => 'public/base'
-                ],
+                'output' => $output,
 
                 'uris' => $uris
             ]

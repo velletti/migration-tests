@@ -82,8 +82,8 @@ class HtmlReportService
 
             foreach ($test['viewports'] as $vp) {
 
-                $relativePathBase = str_replace($config['projectPublic'], '', $vp['pathBase']);
-                $relativePathNew = str_replace($config['projectPublic'], '', $vp['path']);
+                $relativePathBase = str_replace($config['projectPublic'], '..', $vp['pathBase']);
+                $relativePathNew = str_replace($config['projectPublic'], '..', $vp['path']);
 
                 $html .= "<div class='viewport'>";
                 $html .= "<div><B>" . $vp['width'] . "x" . $vp['height'] . "</B></div>";

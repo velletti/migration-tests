@@ -7,7 +7,7 @@ use Facebook\WebDriver\WebDriverDimension;
 
 class RenderService
 {
-    public function render(string $url, int $width, int $height): ?string
+    public function render(string $url, int $width, int $height, ?string $basicAuth = null): ?string
     {
         try {
             $client = Client::createChromeClient($this->getDriverPath(), [
@@ -17,22 +17,21 @@ class RenderService
                 '--ignore-certificate-errors',
                 '--disable-gpu'
             ]);
+            if ($basicAuth) {
+                $url = $this->addBasicAuthToUrl($url, $basicAuth);
+            }
 
-            // Seite laden
-            $client->request('GET', $url);
+            $client->request('GET', $url );
 
-            // WICHTIG: erst NACH request Fenstergröße setzen
             $client->manage()->window()->setSize(
                 new WebDriverDimension($width, $height)
             );
 
-            // statt usleep → echte Wartebedingung
             $client->waitFor('body', 5);
 
             return $client->getPageSource();
 
         } catch (\Throwable $e) {
-            // Debug direkt sichtbar machen
             echo "\nRENDER ERROR: " . $e->getMessage() . "\n";
             return null;
         }
@@ -40,7 +39,7 @@ class RenderService
 
 
 
-    public function screenshot(string $url, int $width, int $height, string $path, array $ignoreSelectors = [] ,?string $scrollTo = null): bool
+    public function screenshot(string $url, int $width, int $height, string $path, array $ignoreSelectors = [] ,?string $scrollTo = null , ?string $basicAuth = null): bool
     {
         try {
 
@@ -51,7 +50,24 @@ class RenderService
                 '--ignore-certificate-errors'
             ]);
 
+            if ($basicAuth) {
+                $url = $this->addBasicAuthToUrl($url, $basicAuth);
+            }
+
             $client->request('GET', $url);
+
+            // Entferne Usercentrics-Skripte aus dem DOM
+            $client->executeScript("
+    var uc = document.getElementById('usercentrics-cmp');
+    if (uc) { uc.remove();  }
+
+    var ucBlock = document.querySelector('script[src*=\"uc-block.bundle.js\"]');
+    if (ucBlock) { ucBlock.remove()}
+
+    var tagManagerScripts = document.querySelectorAll('script[type=\"text/plain\"][data-usercentrics]');
+    tagManagerScripts.forEach(function(el) { el.remove(); });
+            ");
+
 
             $client->manage()->window()->setSize(
                 new \Facebook\WebDriver\WebDriverDimension($width, $height)
@@ -78,6 +94,28 @@ class RenderService
         }
     }
 
+    public function addBasicAuthToUrl(string $url, ?string $basicAuth): string
+    {
+        if (!$basicAuth) {
+            return $url;
+        }
+        $parts = parse_url($url);
+        if (!isset($parts['host'])) {
+            return $url;
+        }
+        [$user, $pass] = explode(':', $basicAuth, 2) + [null, null];
+        $auth = $user . ($pass !== null ? ':' . $pass : '');
+        $parts['user'] = $user;
+        $parts['pass'] = $pass;
+        // Neu zusammensetzen
+        return (isset($parts['scheme']) ? $parts['scheme'] . '://' : '')
+            . $auth . '@'
+            . $parts['host']
+            . (isset($parts['port']) ? ':' . $parts['port'] : '')
+            . (isset($parts['path']) ? $parts['path'] : '')
+            . (isset($parts['query']) ? '?' . $parts['query'] : '')
+            . (isset($parts['fragment']) ? '#' . $parts['fragment'] : '');
+    }
 
 
 

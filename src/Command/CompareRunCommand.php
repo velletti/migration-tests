@@ -10,6 +10,7 @@ use App\Service\HtmlReportService;
 
 use GuzzleHttp\Client;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -27,6 +28,11 @@ class CompareRunCommand extends Command
     // 2. Option in configure() hinzufügen
     protected function configure(): void
     {
+        $this->addArgument(
+            'project',
+            InputArgument::OPTIONAL,
+            'Projektname, z.B. "foo" für project_foo.yaml'
+        );
         $this->addOption(
             'tests',
             null,
@@ -43,8 +49,32 @@ class CompareRunCommand extends Command
 
         $projectRoot = dirname(__DIR__, 2);
 
-        // Config laden
-        $configLoader = new ConfigLoader($projectRoot . '/config/project.yaml');
+        $project = $input->getArgument('project');
+        if ($project) {
+            $configFile = $projectRoot . '/config/project_' . (string)trim($project) . '.yaml';
+            if (!file_exists($configFile)) {
+                $io->error('Konfigurationsdatei nicht gefunden: ' . $configFile);
+                return Command::FAILURE;
+            }
+        } else {
+            // Am Anfang von execute() einfügen, vor $configLoader:
+            $configFiles = glob($projectRoot . '/config/project*.yaml');
+            if (count($configFiles) > 1) {
+                $choices = array_map(fn($f) => basename($f), $configFiles);
+                $selected = $io->choice('Mehrere Projekt-Konfigurationen gefunden. Welche verwenden?', $choices, 0);
+                $configFile = $projectRoot . '/config/' . $selected;
+            } elseif (count($configFiles) === 1) {
+                $configFile = $configFiles[0];
+            } else {
+                $io->error('Keine project*.yaml Datei im config-Ordner gefunden.');
+                return Command::FAILURE;
+            }
+        }
+
+// Dann $configLoader wie folgt anpassen:
+        $configLoader = new ConfigLoader($configFile);
+
+
         $config = $configLoader->getProject();
         $config['projectRoot'] = $projectRoot;
         $config['projectPublic'] = $projectRoot . '/' . ($config['output']['publicDir'] ?? 'public');
@@ -57,7 +87,8 @@ class CompareRunCommand extends Command
 
         $reportDir = $projectRoot . '/' . ($config['output']['reportDir'] ?? 'public/reports');
         $dashBoardDir = ($config['output']['dashboardDir'] ?? 'public/dashboard');
-        $dashBoardUri = $config['instance'] . str_replace("public" , "" ,$dashBoardDir);
+        $dashBoardUri = trim($config['instance'] , "/") . "/dashboard" ;
+
         $dashBoardDir = $projectRoot . '/' . $dashBoardDir ;
         if (!is_dir($reportDir)) {
             mkdir($reportDir, 0777, true);
@@ -97,26 +128,44 @@ class CompareRunCommand extends Command
 
         $testsOption = $input->getOption('tests');
         $testsToRun = null;
+        $totalTests = count($uris);
         if (!empty($testsOption)) {
             $testsToRun = array_map('intval', explode(',', $testsOption));
+            $totalTests = count($testsToRun);
             $io->text("Running only tests: " . implode(', ', $testsToRun));
         }
 
 
-        $testId = 1;
-        $totalTests = count($uris);
+
         $totalScore = 0;
         $maxTotalScore = 0;
 
-        $io->title('URL Compare Tool');
+        $io->title('URL Compare Tool - config: ' . $configFile  );
 
         $reportData = [];
 
+        $oldDomainAuth = $config['oldDomainBasicAuth'] ?? null;
+        $oldOptions = [];
+        if ($oldDomainAuth) {
+           $oldOptions['auth'] = explode(':', $oldDomainAuth, 2);
+        }
+
+        $newDomainAuth = $config['newDomainBasicAuth'] ?? null;
+        $newOptions = [];
+        if ($newDomainAuth) {
+            $newOptions['auth'] = explode(':', $newDomainAuth, 2);
+        }
+
+
         foreach ($uris as $entry) {
+
+            $testId = $entry['key'] ?? null;
+            if ($testId === null) {
+                continue; // Überspringen, falls kein key vorhanden
+            }
 
             // Prüfen, ob dieser Test ausgeführt werden soll
             if ($testsToRun !== null && !in_array($testId, $testsToRun, true)) {
-                $testId++;
                 continue;
             }
 
@@ -135,14 +184,14 @@ class CompareRunCommand extends Command
                 $scrollTo = $entry['scrollTo'] ?? null;
             }
 
-            $oldUrl = $oldDomain . $uri;
-            $newUrl = $newDomain . $uri;
+            $oldUrl = $renderService->addBasicAuthToUrl( $oldDomain . $uri , $oldDomainAuth);
+            $newUrl = $renderService->addBasicAuthToUrl( $newDomain . $uri , $newDomainAuth);
 
-            if ( $testId ) {
-                $io->text("Testing [$testId/$totalTests]:");
+            if ( $totalTests ) {
+                $io->section("Testing [$testId/$totalTests]: $uri");
+            } else {
+                $io->section("Testing [$testId]:");
             }
-
-            $io->section("Test [$testId]: $uri");
 
 
             $maxScore = count($viewports) * 2 + 2; // 2 Checks + 2 Punkte pro Viewport
@@ -159,7 +208,7 @@ class CompareRunCommand extends Command
                 // Nur dann Request an oldDomain
                 try {
 
-                    $oldResponse = $client->get($oldUrl);
+                    $oldResponse = $client->get($oldUrl , $oldOptions);
                     $oldStatus = $oldResponse->getStatusCode();
                     $oldHtml = (string)$oldResponse->getBody();
 
@@ -173,7 +222,7 @@ class CompareRunCommand extends Command
                 } catch (\Exception $e) {
                     $oldStatus = 500;
                     $oldHtml = '';
-                    $io->warning("Old URL failed: $oldUrl");
+                    $io->warning("Old URL failed: $oldUrl" . "Status: ($oldStatus) - " . $e->getMessage());
                 }
             } else {
                 $oldStatus = 404;
@@ -185,7 +234,8 @@ class CompareRunCommand extends Command
             }
 
             try {
-                $newResponse = $client->get($newUrl);
+
+                $newResponse = $client->get($newUrl , $newOptions);
                 $newStatus = $newResponse->getStatusCode();
                 $newHtml = (string)$newResponse->getBody();
                 if (str_contains($newHtml, '<title>Reports Dashboard</title>')) {
@@ -217,8 +267,16 @@ class CompareRunCommand extends Command
             if ($diffService::compareLength($oldHtml, $newHtml)) {
                 $score++;
             } else {
-                $io->text("    ✖ HTML length differs (old: " . strlen($oldHtml) . " vs new: " . strlen($newHtml) . ")");
-                file_put_contents($testDir . "/diff.txt" , $diffService::diffHtml($oldHtml, $newHtml));
+                $diff = $diffService->diffHtml($oldHtml, $newHtml);
+                file_put_contents($testDir . "/diff.txt" , json_encode($diff, JSON_PRETTY_PRINT));
+                if ( count( $diff) < 6  ) {
+                    $score++;
+                    $io->text("    ? HTML differs (similarity: " . count($diff) . " differences, " . $diffService->diffScore($oldHtml, $newHtml) . "% similarity)");
+                } else {
+                    $io->text("    ✖ HTML differs (similarity: " . $diffService->diffScore($oldHtml, $newHtml) . "%)");
+                }
+
+
             }
 
 
@@ -253,9 +311,9 @@ class CompareRunCommand extends Command
                     $io->text("    Using cached screenshots for viewport {$width}x{$height}");
                     $oldOk = true;
                 } else {
-                    $oldOk = $renderService->screenshot($oldUrl, $width, $height, $oldImg, $ignoreSelectors, $scrollTo);
+                    $oldOk = $renderService->screenshot($oldUrl, $width, $height, $oldImg, $ignoreSelectors, $scrollTo, ($config['oldDomainBasicAuth'] ?? null));
                 }
-                $newOk = $renderService->screenshot($newUrl, $width, $height, $newImg, $ignoreSelectors, $scrollTo);
+                $newOk = $renderService->screenshot($newUrl, $width, $height, $newImg, $ignoreSelectors, $scrollTo, ($config['newDomainBasicAuth'] ?? null));
 
                 if ($oldOk && $newOk && file_exists($oldImg) && file_exists($newImg)) {
 
@@ -268,10 +326,10 @@ class CompareRunCommand extends Command
                     } elseif ($percent > 93) {
                         $score++;
                         $io->text("    ? DIFF ({$percent}%)");
+                        $imageDiff->createDiffImage($oldImg, $newImg, $diffImgPath);
                     } else  {
                         $io->text("    ✖ WRONG ({$percent}%)");
 
-                        // ✅ NEU: Diff-Image erzeugen
                         $imageDiff->createDiffImage($oldImg, $newImg, $diffImgPath);
 
                     }
@@ -279,8 +337,7 @@ class CompareRunCommand extends Command
                 } else {
                     $io->warning("    ⚠ Screenshot failed");
                 }
-                $totalScore += $score;
-                $maxTotalScore += $maxScore;
+
 
                 $line = sprintf(
                     "%03d | %s | passed %d/%d",
@@ -299,15 +356,15 @@ class CompareRunCommand extends Command
                 $testData['score'] = $score;
 
             }
+            $totalScore += $score;
+            $maxTotalScore += $maxScore;
+
             $reportData[] = $testData;
 
 
             $io->text($line);
             $reportLines[] = $line;
 
-
-
-            $testId++;
         }
         $io->section("Result");
         $line = sprintf(
@@ -346,7 +403,7 @@ class CompareRunCommand extends Command
         );
 
         $io->success("HTML Report: " . $dashBoardUri. "/report_$timestamp.html");
-        $io->success("Dashboard: " . $config['instance'] . "/index.php?" . time());
+        $io->success("Dashboard: " . $config['instance'] . "index.php?" . time());
 
 
         return Command::SUCCESS;
