@@ -53,7 +53,7 @@ class HtmlReportService
             $score = $test['score'] ?? 0;
             $max = $test['max'] ?? 0;
 
-            $status = ($score +1 >= $max) ? 'pass' : 'fail';
+            $status = ($score +2 >= $max) ? 'pass' : 'fail';
 
             $containerId = "test_" . $index;
 

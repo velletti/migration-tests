@@ -195,7 +195,7 @@ class CompareRunCommand extends Command
             }
 
 
-            $maxScore = count($viewports) * 2 + 2; // 2 Checks + 2 Punkte pro Viewport
+            $maxScore = count($viewports) * 2 + 3; // 3 Checks + 2 Punkte pro Viewport
             $score = 0;
 
             $testData = [
@@ -223,14 +223,14 @@ class CompareRunCommand extends Command
                 } catch (\Exception $e) {
                     $oldStatus = 500;
                     $oldHtml = '';
-                    $io->warning("Old URL failed: $oldUrl" . "Status: ($oldStatus) - " . $e->getMessage());
+                    $io->warning("Old URL failed: $oldUrl" . " - Status: ($oldStatus) - " . $e->getMessage());
                 }
             } else {
                 $oldStatus = 404;
                 $oldHtml = file_get_contents($baseOldHtml);
                 if ($oldHtml) {
                     $oldStatus = 200;
-                    $io->text("Using cached old HTML for $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
+                    $io->text("Using cached old Response for $oldUrl → Status: $oldStatus" . " length: " . strlen($oldHtml));
                 }
             }
 
@@ -243,7 +243,7 @@ class CompareRunCommand extends Command
                     $io->error("New URL is not accessable and is only able to read the Dashboard instead of: $newUrl");
                     return Command::FAILURE;
                 }
-                echo "New HTML length before: " . strlen($newHtml) . "\n";
+                echo "New HTML length before cleanup: " . strlen($newHtml) . "\n";
                 $newHtml = str_replace($oldDomain , "" , $newHtml);
                 $newHtml = str_replace($newDomain , "" , $newHtml);
                 if ( $testId ) {
@@ -267,19 +267,35 @@ class CompareRunCommand extends Command
             // ✅ Check 2: HTML Länge
             if ($diffService::compareLength($oldHtml, $newHtml)) {
                 $score++;
+
             } else {
-                $diff = $diffService->diffHtml($oldHtml, $newHtml);
+                $contentType = "HTML";
+                if ( $oldHtml && str_starts_with($oldHtml, '{"id":')) {
+                    $diff = $diffService->diffJson($oldHtml, $newHtml);
+                    $contentType = "JSON";
+                } else {
+                    $diff = $diffService->diffHtml($oldHtml, $newHtml);
+
+                }
                 file_put_contents($testDir . "/diff.txt" , json_encode($diff, JSON_PRETTY_PRINT));
                 $testData['diffUrl'] = $publicRunDir . "/test_" . str_pad($testId, 3, '0', STR_PAD_LEFT) .  "/diff.txt" ;
                 if ( count( $diff) < 6  ) {
                     $score++;
-                    $io->text("    ? HTML differs (similarity: " . count($diff) . " differences, " . $diffService->diffScore($oldHtml, $newHtml) . "% similarity)");
+                    $io->text("    ? $contentType differs (similarity: " . count($diff) . " differences, " . $diffService->diffScore($oldHtml, $newHtml) . "% similarity)");
                 } else {
-                    $io->text("    ✖ HTML differs (similarity: " . $diffService->diffScore($oldHtml, $newHtml) . "%)");
+                    $io->text("    ✖ $contentType differs (similarity: " . $diffService->diffScore($oldHtml, $newHtml) . "%)");
                 }
 
 
             }
+            $diffNoTags= $diffService->diffScoreText($oldHtml, $newHtml);
+            if ( $diffNoTags > 95 ) {
+                $score++;
+                $io->text("    ? $contentType differs but text (without html tags) content is very similar (similarity: " . $diffNoTags . "%)");
+            } else {
+                $io->text("    ✖ $contentType differs significantly in text content (similarity: " . $diffNoTags . "%)");
+            }
+
 
 
 
